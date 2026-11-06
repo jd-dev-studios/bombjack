@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bomb Jack</title>
+    <style>
+      /* Strip all browser chrome so the canvas sits flush in the viewport. */
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #1a1a2e; /* Dark navy — matches the game's background colour. */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      /* Phaser appends its <canvas> directly into #game-container. */
+      #game-container canvas {
+        display: block;
+        /* Crisp pixel-art scaling — remove if you prefer smooth interpolation. */
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
