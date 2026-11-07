@@ -36,8 +36,8 @@ export default class BootScene extends Phaser.Scene {
     this._createPlayerTexture();
     this._createBombTexture();
 
-    // All textures are ready — start the first level immediately.
-    this.scene.start('GameScene', { levelIndex: 0 });
+    // All textures are ready — show the main menu.
+    this.scene.start('MenuScene');
   }
 
   // ---------------------------------------------------------------------------

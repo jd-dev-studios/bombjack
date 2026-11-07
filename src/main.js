@@ -5,12 +5,15 @@
  * Configures the Phaser 3 Game instance and registers all scenes.
  *
  * Scene boot order:
- *   BootScene → GameScene (level 0, 1, 2 …) → VictoryScene
+ *   BootScene → MenuScene → GameScene (level 0, 1, 2 …) → VictoryScene
+ *                         ↘ EditorScene (visual level editor)
  */
 
 import Phaser from 'phaser';
-import BootScene from './scenes/BootScene.js';
-import GameScene from './scenes/GameScene.js';
+import BootScene   from './scenes/BootScene.js';
+import MenuScene   from './scenes/MenuScene.js';
+import EditorScene from './scenes/EditorScene.js';
+import GameScene   from './scenes/GameScene.js';
 import VictoryScene from './scenes/VictoryScene.js';
 
 const config = {
@@ -29,7 +32,8 @@ const config = {
   },
 
   // Phaser starts scenes in the order listed; only the first is launched automatically.
-  scene: [BootScene, GameScene, VictoryScene],
+  // BootScene runs first to generate all textures, then hands off to MenuScene.
+  scene: [BootScene, MenuScene, EditorScene, GameScene, VictoryScene],
 };
 
 // eslint-disable-next-line no-new
