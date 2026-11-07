@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# k8s/deployment.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs N replicas of the bombjack nginx container.
+#
+# Placeholders to replace before applying:
+#   <IMAGE_REGISTRY>   — e.g. ghcr.io/your-org  or  docker.io/youruser
+#   <IMAGE_TAG>        — e.g. latest  or  a Git SHA like  abc1234
+#
+# Apply:
+#   kubectl apply -f k8s/deployment.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bombjack
+  namespace: default
+  labels:
+    app: bombjack
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bombjack
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0       # zero-downtime: new pods must be ready before old ones are removed
+  template:
+    metadata:
+      labels:
+        app: bombjack
+    spec:
+      # ── Security context ────────────────────────────────────────────────────
+      # nginx:alpine runs as root by default; drop all capabilities and run as
+      # an unprivileged user instead.  Note: nginx needs to bind port 80, so we
+      # keep the nginx worker processes running as the nginx user (uid 101) but
+      # the master process is also started non-root by relying on the existing
+      # nginx:alpine entrypoint behaviour.
+      securityContext:
+        runAsNonRoot: false    # nginx master needs root to bind :80; set true
+        runAsUser: 0           # if you switch to a >1024 port in nginx.conf
+      containers:
+        - name: bombjack
+          image: <IMAGE_REGISTRY>/bombjack:<IMAGE_TAG>
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          # ── Resource limits ─────────────────────────────────────────────────
+          # Serving pre-built static files is extremely cheap; these limits are
+          # intentionally conservative.  Adjust based on observed usage.
+          resources:
+            requests:
+              cpu:    "10m"
+              memory: "32Mi"
+            limits:
+              cpu:    "100m"
+              memory: "64Mi"
+          # ── Health probes ────────────────────────────────────────────────────
+          readinessProbe:
+            httpGet:
+              path: /index.html
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds:       10
+            failureThreshold:    3
+          livenessProbe:
+            httpGet:
+              path: /index.html
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds:       20
+            failureThreshold:    3

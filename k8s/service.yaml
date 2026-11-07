@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# k8s/service.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# ClusterIP Service — exposes the Deployment pods internally on port 80.
+# The Ingress below routes external traffic to this Service; nothing outside
+# the cluster can reach it directly.
+#
+# Apply:
+#   kubectl apply -f k8s/service.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: bombjack
+  namespace: default
+  labels:
+    app: bombjack
+spec:
+  type: ClusterIP
+  selector:
+    app: bombjack          # must match Deployment pod labels
+  ports:
+    - name:       http
+      port:       80       # port the Service listens on inside the cluster
+      targetPort: http     # named port on the container (containerPort: 80)
+      protocol:   TCP
