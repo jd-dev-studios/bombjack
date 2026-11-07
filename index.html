@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bomb Jack</title>
     <style>
-      /* Strip all browser chrome so the canvas sits flush in the viewport. */
+      /* Strip all browser chrome */
       *,
       *::before,
       *::after {
@@ -20,21 +20,51 @@
         height: 100%;
         background: #1a1a2e; /* Dark navy — matches the game's background colour. */
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        font-family: Arial, sans-serif;
       }
 
       /* Phaser appends its <canvas> directly into #game-container. */
       #game-container canvas {
         display: block;
-        /* Crisp pixel-art scaling — remove if you prefer smooth interpolation. */
+        /* Crisp pixel-art scaling */
         image-rendering: pixelated;
+        border-radius: 4px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Community footer styling */
+      .game-footer {
+        margin-top: 14px;
+        color: #8888aa;
+        font-size: 13px;
+        text-align: center;
+        letter-spacing: 0.02em;
+      }
+
+      .game-footer a {
+        color: #ffd600;
+        text-decoration: none;
+        font-weight: bold;
+        transition: color 0.15s ease;
+      }
+
+      .game-footer a:hover {
+        color: #ffea75;
+        text-decoration: underline;
       }
     </style>
   </head>
   <body>
     <div id="game-container"></div>
+    <div class="game-footer">
+      💣 Built with Phaser & Vite. Want to craft your own levels? Check out the project on 
+      <a href="https://github.com/jd-dev-studios/bombjack.git" target="_blank" rel="noopener noreferrer">GitHub</a> 
+      and submit a PR!
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
