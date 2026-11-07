@@ -12,6 +12,7 @@
  *  P          →  Platform tool  (click-and-drag to draw rect)
  *  B          →  Bomb tool      (click to place a bomb)
  *  S          →  Player-Start   (click to move spawn point)
+ *  E          →  Enemy tool     (click to place an enemy; sub-type selectable in toolbar)
  *  D          →  Eraser tool    (click to delete any object)
  *  G          →  Toggle grid snap  16 px ↔ 32 px
  *  Z          →  Undo last action  (works for placements AND deletions)
@@ -24,7 +25,7 @@
  * ─────────────────────────────────────────────────────────────────
  *  DOM TOOLBAR  (injected beside the canvas, removed on shutdown)
  * ─────────────────────────────────────────────────────────────────
- *  Tool buttons     P / B / S
+ *  Tool buttons     P / B / S / E
  *  Snap buttons     16 px / 32 px
  *  Undo / Clear
  *  Export & Log → console.log  +  clipboard copy  +  .js download
@@ -53,6 +54,11 @@ const C_PREVIEW_FILL     = 0xffd600; // drag-preview ghost
 const C_PLAYER_START_RING = 0x00e676; // green ring around player-start icon
 const C_ERASE_HOVER       = 0xff1744; // red highlight when eraser hovers an object
 
+// Enemy icon colours — mirrored from BootScene enemy textures.
+const C_ENEMY_WALKER  = 0xcc1111; // red crawler
+const C_ENEMY_FLIER   = 0x7b1fa2; // purple bird
+const C_ENEMY_BOUNCER = 0x00897b; // teal sphere
+
 export default class EditorScene extends Phaser.Scene {
   constructor() {
     super({ key: 'EditorScene' });
@@ -61,7 +67,7 @@ export default class EditorScene extends Phaser.Scene {
   // ── Init / Shutdown ──────────────────────────────────────────────────────────
 
   init() {
-    /** @type {'platform'|'bomb'|'player'} */
+    /** @type {'platform'|'bomb'|'player'|'enemy'} */
     this.activeTool  = 'platform';
     this.snapSize    = 16;
 
@@ -73,6 +79,12 @@ export default class EditorScene extends Phaser.Scene {
 
     /** @type {{x:number,y:number}|null} */
     this.playerStart = null;
+
+    /** @type {Array<{type:string,x:number,y:number}>} */
+    this.enemies     = [];
+
+    /** Active enemy sub-type when the enemy tool is selected. */
+    this.activeEnemyType = 'walker';
 
     /**
      * Undo stack — each entry is one reversible action.
@@ -104,6 +116,9 @@ export default class EditorScene extends Phaser.Scene {
 
     // Play-test button DOM reference — label toggles while GameScene is running.
     this._playTestBtnEl  = null;
+
+    // Enemy sub-type row DOM reference — shown/hidden with the enemy tool.
+    this._enemySubRowEl  = null;
 
     // Paste-import modal reference — DOM element, null when closed.
     this._pasteModal = null;
@@ -162,7 +177,7 @@ export default class EditorScene extends Phaser.Scene {
 
     // Controls hint — fades after 5 s.
     const tip = this.add.text(CANVAS_W / 2, CANVAS_H - 16,
-      'P Platform  B Bomb  S Player  D Erase  G Snap  Z Undo  V Preview  T Play Test  ESC Menu',
+      'P Platform  B Bomb  S Player  E Enemy  D Erase  G Snap  Z Undo  V Preview  T Play Test  ESC Menu',
       {
         fontSize:   '11px',
         fontFamily: 'Arial, sans-serif',
@@ -223,6 +238,10 @@ export default class EditorScene extends Phaser.Scene {
 
     for (const b of this.bombs) {
       this._drawBombIcon(g, b.x, b.y);
+    }
+
+    for (const e of this.enemies) {
+      this._drawEnemyIcon(g, e.type, e.x, e.y);
     }
 
     if (this.playerStart) {
@@ -332,6 +351,89 @@ export default class EditorScene extends Phaser.Scene {
     g.fillRect(x + 15, y + 36, 8, 4);
   }
 
+  /**
+   * Draws a compact enemy icon centred at (cx, cy).
+   * Mirrors the three BootScene enemy texture designs at editor scale.
+   *
+   * @param {Phaser.GameObjects.Graphics} g
+   * @param {'walker'|'flier'|'bouncer'} type
+   * @param {number} cx  Centre X.
+   * @param {number} cy  Centre Y.
+   */
+  _drawEnemyIcon(g, type, cx, cy) {
+    if (type === 'walker') {
+      // Red armoured crawler body — 24 × 14 rectangle.
+      g.fillStyle(C_ENEMY_WALKER, 1);
+      g.fillRect(cx - 12, cy - 3, 24, 14);
+
+      // Back spike.
+      g.fillStyle(0xff3333, 1);
+      g.fillTriangle(cx - 4, cy - 3, cx, cy - 3, cx - 2, cy - 10);
+      g.fillTriangle(cx + 1, cy - 3, cx + 5, cy - 3, cx + 3, cy - 9);
+
+      // Eye.
+      g.fillStyle(0xffcc00, 1);
+      g.fillCircle(cx + 8, cy + 2, 3);
+      g.fillStyle(0x1a0000, 1);
+      g.fillCircle(cx + 9, cy + 2, 1);
+
+      // Leg stubs.
+      g.fillStyle(0x880000, 1);
+      g.fillRect(cx - 10, cy + 9, 4,  6);
+      g.fillRect(cx -  2, cy + 9, 4,  6);
+      g.fillRect(cx +  6, cy + 9, 4,  6);
+
+      // Bounding ring.
+      g.lineStyle(1, 0xff6666, 0.6);
+      g.strokeRect(cx - 14, cy - 12, 28, 28);
+
+    } else if (type === 'flier') {
+      // Purple winged body.
+      g.fillStyle(0x6a0080, 1);
+      g.fillTriangle(cx, cy, cx - 14, cy - 10, cx - 10, cy + 8); // left wing
+      g.fillTriangle(cx, cy, cx + 14, cy - 10, cx + 10, cy + 8); // right wing
+
+      g.fillStyle(C_ENEMY_FLIER, 1);
+      g.fillCircle(cx, cy, 8);
+
+      g.fillStyle(0xffee58, 1);
+      g.fillCircle(cx - 3, cy - 2, 2);
+      g.fillCircle(cx + 3, cy - 2, 2);
+
+      g.fillStyle(0xffa000, 1);
+      g.fillTriangle(cx - 2, cy + 3, cx + 2, cy + 3, cx, cy + 7);
+
+      // Bounding ring.
+      g.lineStyle(1, 0xce93d8, 0.6);
+      g.strokeRect(cx - 15, cy - 12, 30, 28);
+
+    } else if (type === 'bouncer') {
+      // Teal glowing sphere.
+      g.fillStyle(0x80cbc4, 0.25);
+      g.fillCircle(cx, cy, 14);
+
+      g.fillStyle(C_ENEMY_BOUNCER, 1);
+      g.fillCircle(cx, cy, 10);
+
+      g.fillStyle(0x26a69a, 0.6);
+      g.fillCircle(cx - 2, cy + 1, 8);
+
+      // Gloss highlight.
+      g.fillStyle(0xb2dfdb, 0.9);
+      g.fillCircle(cx - 3, cy - 3, 4);
+      g.fillStyle(0xffffff, 0.7);
+      g.fillCircle(cx - 4, cy - 4, 2);
+
+      // Bounding ring.
+      g.lineStyle(1, 0x80cbc4, 0.6);
+      g.strokeRect(cx - 14, cy - 14, 28, 28);
+    }
+
+    // Type label below the icon so overlapping enemies can be distinguished.
+    // (Drawn via Graphics is not possible; we rely on the bounding-ring colour
+    //  and icon shape alone for type identification in the editor.)
+  }
+
   // ── Live drag preview ─────────────────────────────────────────────────────────
 
   /** Runs every frame — shows a snapped crosshair and ghost rect while dragging. */
@@ -361,6 +463,10 @@ export default class EditorScene extends Phaser.Scene {
           const ps = this.playerStart;
           g.fillRect(ps.x - 2, ps.y - 2, 32, 44);
           g.strokeRect(ps.x - 2, ps.y - 2, 32, 44);
+        } else if (hit.kind === 'enemy') {
+          const e = this.enemies[hit.index];
+          g.fillCircle(e.x, e.y, 16);
+          g.strokeCircle(e.x, e.y, 16);
         }
       }
       // Crosshair is an X for the eraser to reinforce its destructive intent.
@@ -393,6 +499,7 @@ export default class EditorScene extends Phaser.Scene {
     kb.on('keydown-P',   () => { if (!this.isPreviewMode) this._setTool('platform'); });
     kb.on('keydown-B',   () => { if (!this.isPreviewMode) this._setTool('bomb'); });
     kb.on('keydown-S',   () => { if (!this.isPreviewMode) this._setTool('player'); });
+    kb.on('keydown-E',   () => { if (!this.isPreviewMode) this._setTool('enemy'); });
     kb.on('keydown-D',   () => { if (!this.isPreviewMode) this._setTool('eraser'); });
     kb.on('keydown-G',   () => { if (!this.isPreviewMode) this._toggleSnap(); });
     kb.on('keydown-Z',   () => { if (!this.isPreviewMode) this._undo(); });
@@ -442,6 +549,8 @@ export default class EditorScene extends Phaser.Scene {
         this._placeBomb(sx, sy);
       } else if (this.activeTool === 'player') {
         this._placePlayerStart(sx, sy);
+      } else if (this.activeTool === 'enemy') {
+        this._placeEnemy(sx, sy);
       } else if (this.activeTool === 'eraser') {
         this._deleteAt(ptr.x, ptr.y);
       }
@@ -464,6 +573,12 @@ export default class EditorScene extends Phaser.Scene {
     this._redraw();
   }
 
+  _placeEnemy(cx, cy) {
+    this.undoStack.push({ type: 'enemy', index: this.enemies.length });
+    this.enemies.push({ type: this.activeEnemyType, x: cx, y: cy });
+    this._redraw();
+  }
+
   _placePlayerStart(x, y) {
     this.undoStack.push({ type: 'player', prev: this.playerStart });
     this.playerStart = { x, y };
@@ -478,6 +593,7 @@ export default class EditorScene extends Phaser.Scene {
       this.platforms   = entry.platforms;
       this.bombs       = entry.bombs;
       this.playerStart = entry.playerStart;
+      this.enemies     = entry.enemies;
     } else if (entry.type === 'platform') {
       this.platforms.splice(entry.index, 1);
     } else if (entry.type === 'bomb') {
@@ -491,6 +607,10 @@ export default class EditorScene extends Phaser.Scene {
       this.bombs.splice(entry.index, 0, entry.data);
     } else if (entry.type === 'delete_player') {
       this.playerStart = entry.data;
+    } else if (entry.type === 'enemy') {
+      this.enemies.splice(entry.index, 1);
+    } else if (entry.type === 'delete_enemy') {
+      this.enemies.splice(entry.index, 0, entry.data);
     }
 
     this._redraw();
@@ -503,10 +623,12 @@ export default class EditorScene extends Phaser.Scene {
       platforms:   [...this.platforms],
       bombs:       [...this.bombs],
       playerStart: this.playerStart,
+      enemies:     this.enemies.map(e => ({ ...e })),
     });
     this.platforms   = [];
     this.bombs       = [];
     this.playerStart = null;
+    this.enemies     = [];
     this._redraw();
   }
 
@@ -580,7 +702,15 @@ export default class EditorScene extends Phaser.Scene {
       }
     }
 
-    // 3. Platforms — reverse order (topmost drawn = last in array).
+    // 3. Enemies — 14 px radius hit zone (covers the 28×28 bounding box).
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const e = this.enemies[i];
+      if (Math.hypot(px - e.x, py - e.y) <= 14) {
+        return { kind: 'enemy', index: i };
+      }
+    }
+
+    // 4. Platforms — reverse order (topmost drawn = last in array).
     for (let i = this.platforms.length - 1; i >= 0; i--) {
       const p = this.platforms[i];
       if (px >= p.x && px <= p.x + p.width && py >= p.y && py <= p.y + p.height) {
@@ -608,6 +738,9 @@ export default class EditorScene extends Phaser.Scene {
     } else if (hit.kind === 'player') {
       this.undoStack.push({ type: 'delete_player', data: { ...this.playerStart } });
       this.playerStart = null;
+    } else if (hit.kind === 'enemy') {
+      this.undoStack.push({ type: 'delete_enemy', index: hit.index, data: { ...this.enemies[hit.index] } });
+      this.enemies.splice(hit.index, 1);
     }
 
     this._redraw();
@@ -648,6 +781,7 @@ export default class EditorScene extends Phaser.Scene {
       playerStart: { ...this.playerStart },
       platforms:   this.platforms.map(p => ({ ...p })),
       bombs:       this.bombs.map(b => ({ ...b })),
+      enemies:     this.enemies.map(e => ({ ...e })),
     };
 
     // Sleep (not stop) so init() is not called and all state is kept.
@@ -710,6 +844,10 @@ export default class EditorScene extends Phaser.Scene {
       ` * bombs        – Array of { x, y }`,
       ` *                  World-space centre of each static bomb pickup.`,
       ` *`,
+      ` * enemies      – Array of { type, x, y }`,
+      ` *                  type : 'walker' | 'flier' | 'bouncer'`,
+      ` *                  x / y: world-space spawn centre.`,
+      ` *`,
       ` * NOTE: Canvas is 800 × 600 px.  Ground sits at y: 568.  Ceiling at y: 0.`,
       ` */`,
     ].join('\n');
@@ -723,8 +861,12 @@ export default class EditorScene extends Phaser.Scene {
     const fmtBomb = (b, xW, yW) =>
       `    { x: ${padNum(b.x, xW)}, y: ${padNum(b.y, yW)} }`;
 
+    const fmtEnemy = (e, xW, yW) =>
+      `    { type: '${e.type}', x: ${padNum(e.x, xW)}, y: ${padNum(e.y, yW)} }`;
+
     const plats = this.platforms;
     const boms  = this.bombs;
+    const enems = this.enemies;
 
     // Max digit-widths for each numeric field.
     const pXW = plats.length ? Math.max(...plats.map(p => String(p.x).length))      : 1;
@@ -733,6 +875,8 @@ export default class EditorScene extends Phaser.Scene {
     const pHW = plats.length ? Math.max(...plats.map(p => String(p.height).length)) : 1;
     const bXW = boms.length  ? Math.max(...boms.map(b => String(b.x).length))       : 1;
     const bYW = boms.length  ? Math.max(...boms.map(b => String(b.y).length))       : 1;
+    const eXW = enems.length ? Math.max(...enems.map(e => String(e.x).length))      : 1;
+    const eYW = enems.length ? Math.max(...enems.map(e => String(e.y).length))      : 1;
 
     // ── playerStart ──────────────────────────────────────────────────────
     const ps = this.playerStart ?? { x: 400, y: 510 };
@@ -748,6 +892,11 @@ export default class EditorScene extends Phaser.Scene {
       ? boms.map(b => fmtBomb(b, bXW, bYW)).join(',\n')
       : '    // No bombs placed yet.';
 
+    // ── enemies block ────────────────────────────────────────────────────
+    const enemyLines = enems.length
+      ? enems.map(e => fmtEnemy(e, eXW, eYW)).join(',\n')
+      : '    // No enemies placed yet.';
+
     return [
       header,
       '',
@@ -760,6 +909,10 @@ export default class EditorScene extends Phaser.Scene {
       '',
       '  bombs: [',
       bombLines,
+      '  ],',
+      '',
+      '  enemies: [',
+      enemyLines,
       '  ],',
       '};',
       '',
@@ -1016,6 +1169,18 @@ export default class EditorScene extends Phaser.Scene {
       if (typeof b.x !== 'number' || typeof b.y !== 'number')
         return 'bombs[' + i + '] must be { x: number, y: number }.';
     }
+    // enemies is optional — only validate if present.
+    if (data.enemies !== undefined) {
+      if (!Array.isArray(data.enemies)) return '`enemies` must be an array.';
+      const validTypes = ['walker', 'flier', 'bouncer'];
+      for (let i = 0; i < data.enemies.length; i++) {
+        const e = data.enemies[i];
+        if (typeof e.x !== 'number' || typeof e.y !== 'number')
+          return 'enemies[' + i + '] must have numeric x and y.';
+        if (typeof e.type !== 'string' || !validTypes.includes(e.type))
+          return 'enemies[' + i + '].type must be "walker", "flier", or "bouncer".';
+      }
+    }
     return null;
   }
 
@@ -1027,16 +1192,19 @@ export default class EditorScene extends Phaser.Scene {
     label = label || 'import';
     this.undoStack.push({
       type: '__clear__',
-      platforms: [...this.platforms],
-      bombs: [...this.bombs],
+      platforms:   [...this.platforms],
+      bombs:       [...this.bombs],
       playerStart: this.playerStart,
+      enemies:     this.enemies.map(e => ({ ...e })),
     });
     this.platforms   = data.platforms.map(p => ({ ...p }));
     this.bombs       = data.bombs.map(b => ({ ...b }));
     this.playerStart = data.playerStart ? { ...data.playerStart } : null;
+    this.enemies     = data.enemies ? data.enemies.map(e => ({ ...e })) : [];
     this._redraw();
     console.log('%c── EditorScene Import ── loaded from: ' + label, 'color:#00e676; font-weight:bold;');
-    console.log('  platforms:', this.platforms.length, ' bombs:', this.bombs.length, ' playerStart:', this.playerStart);
+    console.log('  platforms:', this.platforms.length, ' bombs:', this.bombs.length,
+                ' enemies:', this.enemies.length, ' playerStart:', this.playerStart);
   }
 
   /** Show a timed error in the status bar (used by the file-import path). */
@@ -1093,6 +1261,13 @@ export default class EditorScene extends Phaser.Scene {
           fontSize: '9px', fontFamily: 'Arial, sans-serif',
           color: '#00e676', align: 'center',
         }).setOrigin(0.5, 0).setDepth(4),
+      );
+    }
+
+    // Enemies — render using the same textures as GameScene.
+    for (const e of this.enemies) {
+      objs.push(
+        this.add.image(e.x, e.y, 'enemy_' + e.type).setOrigin(0.5, 0.5).setDepth(3),
       );
     }
 
@@ -1159,6 +1334,7 @@ export default class EditorScene extends Phaser.Scene {
       platform: '🔲 Platform',
       bomb:     '💣 Bomb',
       player:   '🧍 Player-Start',
+      enemy:    '👾 Enemy',
       eraser:   '🗑 Eraser',
     };
     const ps = this.playerStart ? '✓' : '✗';
@@ -1167,6 +1343,7 @@ export default class EditorScene extends Phaser.Scene {
       `<b>Snap:</b> ${this.snapSize}px<br>` +
       `<b>🔲</b> ${this.platforms.length}&nbsp;&nbsp;` +
       `<b>💣</b> ${this.bombs.length}&nbsp;&nbsp;` +
+      `<b>👾</b> ${this.enemies.length}&nbsp;&nbsp;` +
       `<b>🧍</b> ${ps}`;
   }
 
@@ -1267,10 +1444,42 @@ export default class EditorScene extends Phaser.Scene {
     const btnPlatform = makeBtn('🔲 Platform  [P]',     'Drag to draw a platform rect', () => this._setTool('platform'));
     const btnBomb     = makeBtn('💣 Bomb  [B]',          'Click to place a bomb',        () => this._setTool('bomb'));
     const btnPlayer   = makeBtn('🧍 Player-Start  [S]', 'Click to set spawn point',     () => this._setTool('player'));
+    const btnEnemy    = makeBtn('👾 Enemy  [E]',         'Click to place an enemy',      () => this._setTool('enemy'));
     const btnEraser   = makeBtn('🗑 Eraser  [D]',        'Click any object to delete it',() => this._setTool('eraser'));
 
-    this._toolBtns = { platform: btnPlatform, bomb: btnBomb, player: btnPlayer, eraser: btnEraser };
-    [btnPlatform, btnBomb, btnPlayer, btnEraser].forEach(b => toolCol.appendChild(b));
+    // ── Enemy sub-type selector ─────────────────────────────────────────
+    // Shown below the Enemy button only while the enemy tool is active.
+    const enemySubRow = document.createElement('div');
+    Object.assign(enemySubRow.style, {
+      display:       'none',
+      flexDirection: 'column',
+      gap:           '3px',
+      padding:       '4px 0 2px 8px',
+      borderLeft:    '2px solid #7b1fa2',
+    });
+
+    const makeEnemyTypeBtn = (type, label, title) => {
+      const b = makeBtn(label, title, () => {
+        this.activeEnemyType = type;
+        // Highlight the selected type.
+        [btnWalker, btnFlier, btnBouncer].forEach(tb => markInactive(tb));
+        markActive(b);
+      }, { fontSize: '12px', padding: '3px 6px' });
+      return b;
+    };
+
+    const btnWalker  = makeEnemyTypeBtn('walker',  '🔴 Walker',  'Patrols platform edges');
+    const btnFlier   = makeEnemyTypeBtn('flier',   '🟣 Flier',   'Drifts toward the player');
+    const btnBouncer = makeEnemyTypeBtn('bouncer', '🟢 Bouncer', 'Bounces diagonally off surfaces');
+
+    [btnWalker, btnFlier, btnBouncer].forEach(b => enemySubRow.appendChild(b));
+    this._enemySubRowEl = enemySubRow;
+
+    // Default: Walker is pre-selected.
+    markActive(btnWalker);
+
+    this._toolBtns = { platform: btnPlatform, bomb: btnBomb, player: btnPlayer, enemy: btnEnemy, eraser: btnEraser };
+    [btnPlatform, btnBomb, btnPlayer, btnEnemy, enemySubRow, btnEraser].forEach(b => toolCol.appendChild(b));
     toolSec.appendChild(toolCol);
     bar.appendChild(toolSec);
 
@@ -1392,6 +1601,11 @@ export default class EditorScene extends Phaser.Scene {
       Object.entries(this._toolBtns).forEach(([key, btn]) => {
         key === this.activeTool ? markActive(btn) : markInactive(btn);
       });
+      // Show the enemy sub-type picker only while the enemy tool is active.
+      if (this._enemySubRowEl) {
+        this._enemySubRowEl.style.display =
+          this.activeTool === 'enemy' ? 'flex' : 'none';
+      }
     };
 
     this._syncSnapButtons = () => {

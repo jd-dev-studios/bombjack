@@ -1,7 +1,7 @@
 /**
- * src/levels/level3.js
+ * src/levels/level1.js
  * --------------------
- * Layout data for Level 3 — created with the visual editor.
+ * Layout data for Level 1.
  *
  * DATA SHAPE
  * ----------
@@ -14,6 +14,10 @@
  *
  * bombs        – Array of { x, y }
  *                  World-space centre of each static bomb pickup.
+ *
+ * enemies      – Array of { type, x, y }
+ *                  type : 'walker' | 'flier' | 'bouncer'
+ *                  x / y: world-space spawn centre.
  *
  * NOTE: Canvas is 800 × 600 px.  Ground sits at y: 568.  Ceiling at y: 0.
  */
@@ -66,5 +70,14 @@ export default {
     { x:  48, y: 288 },
     { x:  48, y: 256 },
     { x:  48, y: 224 }
+  ],
+
+  enemies: [
+    // Walker: patrols the wide lower-right shelf (x 544–720, y 480 platform).
+    { type: 'walker',  x: 624, y: 464 },
+    // Flier: drifts in the open mid-arena space, hunting the player.
+    { type: 'flier',   x: 400, y: 220 },
+    // Bouncer: ricochets in the left-side vertical corridor.
+    { type: 'bouncer', x: 200, y: 420 },
   ],
 };

@@ -2,8 +2,8 @@
  * src/scenes/GameScene.js
  * -----------------------
  * Core gameplay scene. Reads level data from LEVELS[levelIndex], builds the
- * world, handles player movement / physics, manages bomb collection, and drives
- * level-progression / victory logic.
+ * world, handles player movement / physics, manages bomb collection, enemies,
+ * and drives level-progression / victory logic.
  *
  * SCENE DATA  { levelIndex: Number, levelData?: Object, returnTo?: string }
  *   levelIndex  — zero-based index into LEVELS (used for normal play).
@@ -18,6 +18,14 @@
  *
  * WIN FLOW
  *   All bombs collected → returnTo? YES → wake editor  |  more levels? YES → next level  |  NO → VictoryScene
+ *
+ * ENEMIES
+ *   walker   — Patrols platform surfaces, reverses at edges and walls.
+ *   flier    — Gravity-exempt; drifts toward the player at constant speed.
+ *   bouncer  — Gravity-exempt; bounces diagonally off walls, floors, and platforms.
+ *
+ *   Touching any enemy triggers a brief death flash + camera shake, then
+ *   teleports the player back to the level's playerStart position.
  */
 
 import { LEVELS } from '../config/levels.js';
@@ -49,6 +57,13 @@ const TRANSITION_DELAY = 1800;  // ms banner is shown before scene switch
 const BOMB_TINT_A      = 0xff6f00;
 const BOMB_TINT_B      = 0xffd600;
 
+// ── Enemy tuning ──────────────────────────────────────────────────────────────
+const ENEMY_WALKER_SPEED       =  80;  // px/s  — horizontal patrol speed
+const ENEMY_FLIER_SPEED        =  90;  // px/s  — drift-to-orbit-point speed
+const ENEMY_FLIER_ORBIT_RADIUS =  72;  // px    — flier orbit radius around the player
+const ENEMY_BOUNCER_SPEED      = 130;  // px/s per axis — constant (DVD screensaver)
+const DEATH_RESPAWN_DELAY      = 1500; // ms    — pause before the player reappears
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' });
@@ -72,6 +87,8 @@ export default class GameScene extends Phaser.Scene {
     this.jumpBufferMs = 0;     // counts down while a buffered press is pending
     this.isJumpHeld   = false; // true while the hold-boost phase is active
     this.jumpHoldMs   = 0;     // accumulates ms the hold boost has run
+    // Death / respawn state.
+    this.isDead       = false; // true during the respawn-pause after touching an enemy
   }
 
   create() {
@@ -84,6 +101,7 @@ export default class GameScene extends Phaser.Scene {
 
     this._buildBombs();
     this._buildPlayer();
+    this._buildEnemies();
     this._setupColliders();
 
     this.cursors  = this.input.keyboard.createCursorKeys();
@@ -100,7 +118,9 @@ export default class GameScene extends Phaser.Scene {
 
   update() {
     if (this.isTransitioning) return;
+    if (this.isDead)          return;
     this._handlePlayerMovement();
+    this._updateEnemies();
   }
 
   // ── World building ─────────────────────────────────────────────────────────
@@ -168,6 +188,247 @@ export default class GameScene extends Phaser.Scene {
     this.player.body.setOffset(3, 1);
   }
 
+  /**
+   * Reads `this.levelData.enemies` and spawns each one as a physics sprite.
+   * Safe to call even when the `enemies` key is absent or empty.
+   *
+   * Walker  — runs on platforms; gravity enabled; bounces off walls / edges.
+   * Flier   — floats freely; gravity disabled; homes toward the player each frame.
+   * Bouncer — gravity disabled; launches diagonally; elastic bounce (coeff 1).
+   */
+  _buildEnemies() {
+    const defs = this.levelData.enemies;
+    if (!defs || defs.length === 0) {
+      this.enemies = null;
+      return;
+    }
+
+    this.enemies = this.physics.add.group();
+
+    for (const def of defs) {
+      const key    = 'enemy_' + def.type;
+      const sprite = this.physics.add.sprite(def.x, def.y, key);
+      sprite.setOrigin(0.5, 0.5);
+      sprite.enemyType = def.type;
+
+      if (def.type === 'walker') {
+        sprite.setCollideWorldBounds(true);
+        sprite.setBounce(0);
+        sprite.setVelocityX(ENEMY_WALKER_SPEED);
+        sprite.body.setSize(28, 18);
+        sprite.body.setOffset(2, 14);
+        sprite.patrolDir = 1;
+
+      } else if (def.type === 'flier') {
+        sprite.body.setAllowGravity(false);
+        sprite.setCollideWorldBounds(true);
+        sprite.setVelocity(0, 0);
+        sprite.body.setSize(18, 18);
+        sprite.body.setOffset(7, 8);
+        // Each flier gets a unique starting angle and rotation rate so
+        // multiple fliers orbit the player at different positions and speeds,
+        // giving the player breathing room rather than all stacking together.
+        sprite.wanderAngle = Math.random() * Math.PI * 2;          // 0 – 2π
+        sprite.wanderSpeed = 0.6 + Math.random() * 0.8;            // 0.6 – 1.4 rad/s
+
+      } else if (def.type === 'bouncer') {
+        sprite.body.setAllowGravity(false);
+        sprite.setCollideWorldBounds(true);
+        sprite.setBounce(1);
+        const dirX = Math.random() < 0.5 ? 1 : -1;
+        const dirY = Math.random() < 0.5 ? 1 : -1;
+        sprite.setVelocity(ENEMY_BOUNCER_SPEED * dirX, ENEMY_BOUNCER_SPEED * dirY);
+        sprite.body.setSize(24, 24);
+        sprite.body.setOffset(4, 4);
+      }
+
+      this.enemies.add(sprite);
+    }
+  }
+
+  // ── Enemy AI ───────────────────────────────────────────────────────────────
+
+  /** Dispatches per-frame behaviour for every active enemy. */
+  _updateEnemies() {
+    if (!this.enemies) return;
+    for (const enemy of this.enemies.getChildren()) {
+      if (!enemy.active) continue;
+      if (enemy.enemyType === 'walker')  this._updateWalker(enemy);
+      else if (enemy.enemyType === 'flier')   this._updateFlier(enemy);
+      else if (enemy.enemyType === 'bouncer') this._updateBouncer(enemy);
+    }
+  }
+
+  /**
+   * Walker AI — patrols a platform surface, reversing when:
+   *   a) The body is blocked left or right (wall / world edge).
+   *   b) No supporting ground exists one step ahead (cliff edge).
+   *
+   * Uses if/else so only ONE flip can happen per frame — prevents the
+   * double-flip / spin-in-place bug that occurs at platform corners.
+   * Uses body.bottom (world-space feet y) so the probe lands correctly
+   * below the actual physics foot, not relative to the sprite centre.
+   */
+  _updateWalker(enemy) {
+    const body = enemy.body;
+    let flip = false;
+
+    if (body.blocked.left || body.blocked.right) {
+      // Hit a wall or world edge — reverse direction.
+      flip = true;
+    } else {
+      // Edge detection: probe one body-width ahead and just below the feet.
+      const probeX = enemy.x + enemy.patrolDir * (body.width / 2 + 6);
+      const probeY = body.bottom + 4;  // body.bottom is world-space feet y
+      if (!this._groundExistsAt(probeX, probeY)) {
+        flip = true;
+      }
+    }
+
+    if (flip) {
+      enemy.patrolDir *= -1;
+      enemy.setFlipX(enemy.patrolDir < 0);
+    }
+
+    enemy.setVelocityX(ENEMY_WALKER_SPEED * enemy.patrolDir);
+  }
+
+  /**
+   * Returns true when a platform rectangle (or the canvas bottom edge) covers
+   * the point (px, py).  Used by walkers for cliff-edge detection.
+   */
+  _groundExistsAt(px, py) {
+    if (py >= this.scale.height - 4) return true;
+    for (const p of this.levelData.platforms) {
+      if (px >= p.x && px <= p.x + p.width &&
+          py >= p.y && py <= p.y + p.height) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Flier AI — each flier orbits the player at a unique angle and speed.
+   *
+   * Rather than all fliers converging to the same pixel (the player's centre),
+   * each instance advances its own wanderAngle each frame and steers toward a
+   * point on a circle of ENEMY_FLIER_ORBIT_RADIUS around the player.  Different
+   * starting angles (set at spawn) keep multiple fliers spread around the player;
+   * different rotation rates prevent re-convergence over time.
+   * A 30 px dead-zone stops micro-jitter once the orbit point is reached.
+   */
+  _updateFlier(enemy) {
+    const dt = this.sys.game.loop.delta / 1000;   // seconds since last frame
+
+    // Advance the per-instance orbit angle.
+    enemy.wanderAngle += enemy.wanderSpeed * dt;
+
+    // Target: a point on a circle centred on the player.
+    const tx = this.player.x + Math.cos(enemy.wanderAngle) * ENEMY_FLIER_ORBIT_RADIUS;
+    const ty = this.player.y + Math.sin(enemy.wanderAngle) * ENEMY_FLIER_ORBIT_RADIUS;
+
+    const dx   = tx - enemy.x;
+    const dy   = ty - enemy.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 30) {
+      // Already close enough to the orbit point — coast, don't jitter.
+      enemy.setVelocity(0, 0);
+      return;
+    }
+
+    const inv = ENEMY_FLIER_SPEED / dist;
+    enemy.setVelocity(dx * inv, dy * inv);
+    enemy.setFlipX(dx < 0);
+  }
+
+  /**
+   * Bouncer AI — DVD-screensaver style: constant speed on each axis, with
+   * the sign flipped immediately when any surface is contacted.
+   *
+   * Why not rely on arcade physics setBounce(1)?
+   * The static platform bodies carry a default bounce of 0 in Phaser's Arcade
+   * engine, so the dynamic bounce coefficient alone is not guaranteed to
+   * produce a clean reflection against hand-crafted static rectangles.
+   * Instead we read the blocked flags (which ARE reliably set by the collider)
+   * and force the exact velocity we want, keeping each axis at a constant
+   * ±ENEMY_BOUNCER_SPEED every frame.  A per-axis stall watchdog (threshold
+   * 25% of target speed) covers corner-trap and first-frame edge cases.
+   */
+  _updateBouncer(enemy) {
+    const b = enemy.body;
+
+    // ── Reflect off horizontal surfaces (platform tops / floors / ceiling) ──
+    if (b.blocked.down) {
+      enemy.setVelocityY(-ENEMY_BOUNCER_SPEED);
+    } else if (b.blocked.up) {
+      enemy.setVelocityY(ENEMY_BOUNCER_SPEED);
+    }
+
+    // ── Reflect off vertical surfaces (walls / platform sides) ────────────
+    if (b.blocked.left) {
+      enemy.setVelocityX(ENEMY_BOUNCER_SPEED);
+    } else if (b.blocked.right) {
+      enemy.setVelocityX(-ENEMY_BOUNCER_SPEED);
+    }
+
+    // ── Per-axis stall watchdog ────────────────────────────────────────────
+    // If an axis velocity has drained below 25% of target (e.g. due to
+    // platform overlap-resolution or a first-frame standing start) restore it
+    // immediately, preserving the current sign where available.
+    const vx = b.velocity.x;
+    const vy = b.velocity.y;
+    const threshold = ENEMY_BOUNCER_SPEED * 0.25;
+
+    if (Math.abs(vx) < threshold) {
+      // Default to rightward on a true zero so the ball always starts moving.
+      enemy.setVelocityX((vx < 0 ? -1 : 1) * ENEMY_BOUNCER_SPEED);
+    }
+    if (Math.abs(vy) < threshold) {
+      // Default upward on a true zero — away from the ground it spawns on.
+      enemy.setVelocityY((vy > 0 ? 1 : -1) * ENEMY_BOUNCER_SPEED);
+    }
+  }
+
+  // ── Death & respawn ────────────────────────────────────────────────────────
+
+  /**
+   * Overlap callback — fires when the player sprite overlaps any enemy.
+   * Freezes the player, applies a red tint, shakes the camera, then
+   * schedules _respawnPlayer() after DEATH_RESPAWN_DELAY milliseconds.
+   */
+  _hitEnemy(_player, _enemy) {
+    if (this.isTransitioning || this.isDead) return;
+
+    this.isDead = true;
+
+    // Freeze the player in place so it doesn't slide off a platform while dead.
+    this.player.setVelocity(0, 0);
+    this.player.body.setAllowGravity(false);
+    this.player.setTint(0xff2222);
+
+    this.cameras.main.shake(300, 0.018);
+
+    this.time.delayedCall(DEATH_RESPAWN_DELAY, () => this._respawnPlayer());
+  }
+
+  /** Restores the player at the level's spawn point and clears death state. */
+  _respawnPlayer() {
+    const { x, y } = this.levelData.playerStart;
+
+    this.player.setPosition(x, y);
+    this.player.setVelocity(0, 0);
+    this.player.body.setAllowGravity(true);
+    this.player.clearTint();
+
+    this.jumpBufferMs = 0;
+    this.isJumpHeld   = false;
+    this.jumpHoldMs   = 0;
+
+    this.isDead = false;
+  }
+
   // ── Physics ────────────────────────────────────────────────────────────────
 
   _setupColliders() {
@@ -184,6 +445,20 @@ export default class GameScene extends Phaser.Scene {
       null,
       this,
     );
+
+    // Enemies collide with platforms (lets walkers stand and bouncers reflect).
+    if (this.enemies) {
+      this.physics.add.collider(this.enemies, this.platforms, null, null, this);
+
+      // Player touching any enemy → death / respawn.
+      this.physics.add.overlap(
+        this.player,
+        this.enemies,
+        this._hitEnemy,
+        null,
+        this,
+      );
+    }
   }
 
   // ── Input & movement ───────────────────────────────────────────────────────
