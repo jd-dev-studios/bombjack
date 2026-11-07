@@ -1,0 +1,48 @@
+name: Build and Push to ECR
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6  # Updated from v4
+
+      - name: Generate Timestamp
+        id: timestamp
+        run: echo "NOW=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
+      - name: Extract Tag Name
+        id: tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6  # Updated from v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2  # No change needed
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4  # Updated from v3
+
+      - name: Build and Push to ECR
+        uses: docker/build-push-action@v7  # Updated from v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/bombjack:${{ env.VERSION }}-${{ env.NOW }}
+            ${{ steps.login-ecr.outputs.registry }}/bombjack:latest
