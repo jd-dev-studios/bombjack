@@ -83,10 +83,22 @@ export default class GameScene extends Phaser.Scene {
     // _refreshBombCounter() works correctly on scene.restart().
     this.bombCounterLabel = null;
     this.levelLabel       = null;
+    this.timerPanel       = null; // timer HUD panel (not in play-test mode)
+    this.timerText        = null;
+    this.prevTimeText     = null;
+    this.bestTimeText     = null;
+
     // Jump state — reset every scene start so mechanics are fresh.
     this.jumpBufferMs = 0;     // counts down while a buffered press is pending
     this.isJumpHeld   = false; // true while the hold-boost phase is active
     this.jumpHoldMs   = 0;     // accumulates ms the hold boost has run
+    
+    // ── Timer / Speedrun tracking ──────────────────────────────────────────
+    // On level 0, start a fresh timer. Skip in play-test mode (returnTo set).
+    if (this.levelIndex === 0 && !this.returnTo) {
+      this.game.registry.set('timerStart', Date.now());
+    }
+
     // Death / respawn state.
     this.isDead       = false; // true during the respawn-pause after touching an enemy
   }
@@ -98,6 +110,11 @@ export default class GameScene extends Phaser.Scene {
     // HUD must be built before bombs so bombCounterLabel is a live Text object
     // by the time _buildBombs() calls _refreshBombCounter().
     this._buildHUD();
+
+    // Build timer HUD (not in play-test mode).
+    if (!this.returnTo) {
+      this._buildTimerHUD();
+    }
 
     this._buildBombs();
     this._buildPlayer();
@@ -116,8 +133,11 @@ export default class GameScene extends Phaser.Scene {
     this._startBombPulse();
   }
 
+
   update() {
     if (this.isTransitioning) return;
+     this._updateTimerHUD();
+
     this._updateEnemies();
     if (this.isDead)          return;
     this._handlePlayerMovement();
@@ -606,7 +626,7 @@ export default class GameScene extends Phaser.Scene {
       if (hasNextLevel) {
         this.scene.restart({ levelIndex: nextIndex });
       } else {
-        this.scene.start('VictoryScene');
+        this.scene.start('VictoryScene', { completionTime: this._getElapsedMs() });
       }
     });
   }
@@ -682,5 +702,82 @@ export default class GameScene extends Phaser.Scene {
       },
     });
   }
-}
 
+  // ── Speedrun Timer ─────────────────────────────────────────────────────────
+
+  /**
+   * Formats milliseconds as MM:SS.ss (e.g., "01:23.45" for 1 minute 23.45 seconds).
+   */
+  _formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+  }
+
+  /**
+   * Returns elapsed time in milliseconds since the timer started.
+   */
+  _getElapsedMs() {
+    const timerStart = this.game.registry.get('timerStart');
+    if (!timerStart) return 0;
+    return Date.now() - timerStart;
+  }
+
+  /**
+   * Builds the timer display panel in the top-left corner.
+   * Shows current time, previous time, and personal best.
+   */
+  _buildTimerHUD() {
+    const prevMs = parseInt(localStorage.getItem('bombjack_speedrun_prev') || '0', 10);
+    const bestMs = parseInt(localStorage.getItem('bombjack_speedrun_best') || '0', 10);
+    
+    const panelX = 0;
+    const panelY = 0;
+    const panelW = 200;
+    const panelH = 100;
+    
+    // Semi-transparent dark background panel.
+    //this.timerPanel = this.add.rectangle(panelX + panelW / 2, panelY + panelH / 2, panelW, panelH, 0x000000, 0.6)
+    //  .setOrigin(0, 0)
+    //  .setDepth(5);
+    
+    const baseStyle = {
+      fontSize: '14px',
+      fontFamily: 'Arial, monospace',
+      color: '#ffd600',
+      stroke: '#000000',
+      strokeThickness: 2,
+    };
+    
+    // Current time — updated every frame.
+    this.timerText = this.add.text(40, 42, '⏱  00:00.00', baseStyle).setDepth(5);
+    
+    // Previous time — fixed on creation.
+    const prevTimeStr = prevMs > 0 ? this._formatTime(prevMs) : '--:--.--';
+    this.prevTimeText = this.add.text(40, 68, `Prev: ${prevTimeStr}`, {
+      ...baseStyle,
+      fontSize: '12px',
+      color: '#aaaaaa',
+    }).setDepth(5);
+    
+    // Personal best — fixed on creation.
+    const bestTimeStr = bestMs > 0 ? this._formatTime(bestMs) : '--:--.--';
+    this.bestTimeText = this.add.text(40, 86, `Best: ${bestTimeStr}`, {
+      ...baseStyle,
+      fontSize: '12px',
+      color: '#ffd600',
+    }).setDepth(5);
+  }
+
+  /**
+   * Updates the current timer display each frame.
+   */
+  _updateTimerHUD() {
+    if (!this.timerText || !this.game.registry.get('timerStart')) return;
+    const elapsedMs = this._getElapsedMs();
+    this.timerText.setText(`⏱  ${this._formatTime(elapsedMs)}`);
+  }
+
+}

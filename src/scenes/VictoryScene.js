@@ -14,6 +14,34 @@ export default class VictoryScene extends Phaser.Scene {
     super({ key: 'VictoryScene' });
   }
 
+  init(data) {
+    this.completionTime = data?.completionTime ?? 0;
+    this.isNewBest = false;
+    
+    // Save times to localStorage and update personal best flag.
+    if (this.completionTime > 0) {
+      const prevMs = parseInt(localStorage.getItem('bombjack_speedrun_prev') || '0', 10);
+      const bestMs = parseInt(localStorage.getItem('bombjack_speedrun_best') || '0', 10);
+      
+      // Current time becomes the previous time.
+      localStorage.setItem('bombjack_speedrun_prev', String(this.completionTime));
+      
+      // Update best if this is the first run or beats the current best.
+      if (bestMs === 0 || this.completionTime < bestMs) {
+        localStorage.setItem('bombjack_speedrun_best', String(this.completionTime));
+        this.isNewBest = true;
+      }
+    }
+  }
+
+  _formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+  }
+
   create() {
     const { width, height } = this.scale;
     const cx = width  / 2;
@@ -33,7 +61,7 @@ export default class VictoryScene extends Phaser.Scene {
 
     // ── Text ────────────────────────────────────────────────────────────────
     // Main heading.
-    const heading = this.add.text(cx, cy - 130, '🎉 Congratulations! 🎉', {
+    const heading = this.add.text(cx, cy - 160, '🎉 Congratulations! 🎉', {
       fontSize:        '38px',
       fontFamily:      'Arial Black, Arial, sans-serif',
       color:           '#ffd600',
@@ -43,7 +71,7 @@ export default class VictoryScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0);
 
     // Sub-heading.
-    const sub = this.add.text(cx, cy - 60, 'You collected every bomb!', {
+    const sub = this.add.text(cx, cy - 90, 'You collected every bomb!', {
       fontSize:        '22px',
       fontFamily:      'Arial, sans-serif',
       color:           '#ffffff',
@@ -52,7 +80,31 @@ export default class VictoryScene extends Phaser.Scene {
       align:           'center',
     }).setOrigin(0.5).setAlpha(0);
 
-    const flavour = this.add.text(cx, cy - 20, 'Bomb Jack would be proud.', {
+    // Completion time.
+    const timeStr = this.completionTime > 0 ? this._formatTime(this.completionTime) : '--:--.--';
+    const completionTimeText = this.add.text(cx, cy - 30, `Completion Time: ${timeStr}`, {
+      fontSize:        '20px',
+      fontFamily:      'Arial, monospace',
+      color:           '#ffd600',
+      stroke:          '#000000',
+      strokeThickness: 3,
+      align:           'center',
+    }).setOrigin(0.5).setAlpha(0);
+
+    // New Personal Best badge (shown only if applicable).
+    let bestBadge = null;
+    if (this.isNewBest && this.completionTime > 0) {
+      bestBadge = this.add.text(cx, cy + 10, '🏆 New Personal Best! 🏆', {
+        fontSize:        '18px',
+        fontFamily:      'Arial Black, Arial, sans-serif',
+        color:           '#ffff00',
+        stroke:          '#000000',
+        strokeThickness: 3,
+        align:           'center',
+      }).setOrigin(0.5).setAlpha(0);
+    }
+
+    const flavour = this.add.text(cx, cy + 50, 'Bomb Jack would be proud.', {
       fontSize:        '16px',
       fontFamily:      'Arial, sans-serif',
       color:           '#aaaaaa',
@@ -60,11 +112,11 @@ export default class VictoryScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0);
 
     // ── Play-again button ────────────────────────────────────────────────────
-    const btnBg = this.add.rectangle(cx, cy + 80, 240, 56, 0xffd600, 1)
+    const btnBg = this.add.rectangle(cx, cy + 120, 240, 56, 0xffd600, 1)
       .setInteractive({ useHandCursor: true })
       .setAlpha(0);
 
-    const btnText = this.add.text(cx, cy + 80, '▶  Play Again', {
+    const btnText = this.add.text(cx, cy + 120, '▶  Play Again', {
       fontSize:   '22px',
       fontFamily: 'Arial Black, Arial, sans-serif',
       color:      '#1a1a2e',
@@ -80,15 +132,20 @@ export default class VictoryScene extends Phaser.Scene {
     });
 
     // ── Entrance animation ───────────────────────────────────────────────────
-    this.tweens.add({ targets: heading,  alpha: 1, y: cy - 120, duration: 700, ease: 'Back.Out' });
-    this.tweens.add({ targets: sub,      alpha: 1, y: cy - 55,  duration: 700, ease: 'Back.Out', delay: 200 });
-    this.tweens.add({ targets: flavour,  alpha: 1,              duration: 500, delay: 400 });
+    this.tweens.add({ targets: heading,  alpha: 1, y: cy - 150, duration: 700, ease: 'Back.Out' });
+    this.tweens.add({ targets: completionTimeText, alpha: 1,    duration: 500, delay: 300 });
+    if (bestBadge) {
+      this.tweens.add({ targets: bestBadge, alpha: 1,            duration: 500, delay: 400 });
+    }
+    this.tweens.add({ targets: sub,      alpha: 1, y: cy - 85,  duration: 700, ease: 'Back.Out', delay: 200 });
+    this.tweens.add({ targets: flavour,  alpha: 1,              duration: 500, delay: 500 });
     this.tweens.add({ targets: [btnBg, btnText], alpha: 1,      duration: 500, delay: 700 });
+
 
     // Gentle floating animation on the heading once it has arrived.
     this.tweens.add({
       targets:  heading,
-      y:        cy - 128,
+      y:        cy - 158,
       duration: 1800,
       yoyo:     true,
       repeat:   -1,
