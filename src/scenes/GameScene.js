@@ -118,9 +118,9 @@ export default class GameScene extends Phaser.Scene {
 
   update() {
     if (this.isTransitioning) return;
+    this._updateEnemies();
     if (this.isDead)          return;
     this._handlePlayerMovement();
-    this._updateEnemies();
   }
 
   // ── World building ─────────────────────────────────────────────────────────
