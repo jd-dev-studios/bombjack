@@ -124,10 +124,13 @@ export default class GameScene extends Phaser.Scene {
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    // Play-test mode: ESC immediately returns to the editor without saving.
+    // ESC key: return to editor in play-test mode, return to main menu in normal play.
     if (this.returnTo) {
       this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
         .on('down', () => this._exitToEditor());
+    } else {
+      this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+        .on('down', () => this._exitToMenu());
     }
 
     this._startBombPulse();
@@ -644,6 +647,19 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Abandons the current run and returns to the main menu immediately.
+   * Clears the timer registry entry so no time is recorded for this run —
+   * neither best nor previous times in localStorage will be updated.
+   * Called when the player presses ESC during normal (non-play-test) gameplay.
+   */
+  _exitToMenu() {
+    // Discard the in-progress run — remove the timer so VictoryScene never
+    // receives it and no best/prev times are written to localStorage.
+    this.game.registry.remove('timerStart');
+    this.scene.start('MenuScene');
+  }
+
+  /**
    * Stops this GameScene and wakes the editor, restoring its full state.
    * Called by ESC in play-test mode, or after all bombs are collected.
    */
@@ -684,7 +700,7 @@ export default class GameScene extends Phaser.Scene {
     // Controls hint — fades out after 4 s.
     const controlsText = this.returnTo
       ? '← → Move    ↑ / Space Jump (hold = higher, hold falling = glide)    ESC Return to Editor'
-      : '← → Move    ↑ / Space Jump (hold = higher, hold falling = glide)';
+      : '← → Move    ↑ / Space Jump (hold = higher, hold falling = glide)    ESC Menu';
 
     const hint = this.add
       .text(14, this.scale.height - 24, controlsText, {
