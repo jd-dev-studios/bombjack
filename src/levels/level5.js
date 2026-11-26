@@ -15,8 +15,9 @@
  * bombs        – Array of { x, y }
  *                  World-space centre of each static bomb pickup.
  *
- * enemies      – Array of { type, x, y }
+ * enemies      – Array of { type, x, y, dir? }
  *                  type : 'walker' | 'flier' | 'bouncer'
+ *                  dir  : 'left' | 'right' (optional; affects walkers and bouncers).
  *                  x / y: world-space spawn centre.
  *
  * NOTE: Canvas is 800 × 600 px.  Ground sits at y: 568.  Ceiling at y: 0.

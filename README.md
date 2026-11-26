@@ -40,13 +40,13 @@ npm run preview
 
 ### In-game
 
-| Key                                 | Action                                                        |
-|-------------------------------------|---------------------------------------------------------------|
-| `←` / `→`                           | Move left / right                                             |
-| `↑` or `Space` *(tap)*              | Small hop                                                     |
-| `↑` or `Space` *(hold)*             | Full jump — hold longer to jump higher (up to 220 ms boost)   |
-| `↑` or `Space` *(hold while falling)* | Glide — dramatically slows descent                          |
-| `ESC`                               | *(Play-test only)* Return to the Level Editor immediately     |
+| Key                                           | Action                                                        |
+|-----------------------------------------------|---------------------------------------------------------------|
+| `←` / `→`  or  `A` / `D`                     | Move left / right                                             |
+| `↑`, `Space`, or `W` *(tap)*                  | Small hop                                                     |
+| `↑`, `Space`, or `W` *(hold)*                 | Full jump — hold longer to jump higher (up to 220 ms boost)   |
+| `↑`, `Space`, or `W` *(hold while falling)*   | Glide — dramatically slows descent                            |
+| `ESC`                                         | Return to Main Menu (or return to Level Editor in play-test)  |
 
 ### Jump system
 
@@ -73,6 +73,20 @@ landing, so jumps never feel missed near the ground.
 
 ---
 
+## 🕹️ Gamepad Support
+
+The Phaser Gamepad plugin is enabled globally, so any standard USB or Bluetooth
+controller works out of the box.
+
+| Scene        | Button                               | Action                                             |
+|--------------|--------------------------------------|----------------------------------------------------|
+| **Menu**     | `A` (Xbox) / `Cross` (PS) or `Start` | Start the game                                     |
+| **Menu**     | `Select` / `Share` / `Back`          | Open Level Editor                                  |
+| **In-game**  | Left stick or D-pad `←` / `→`       | Move left / right                                  |
+| **In-game**  | `A`, `X`, `Y` or D-pad `↑`          | Jump / glide (same three-phase system as keyboard) |
+| **In-game**  | `Start` / `Options`                  | Return to Main Menu (or Editor in play-test)       |
+| **Victory**  | `A` or `Start`                       | Play Again                                         |
+
 ---
 
 ## 👾 Enemies
@@ -81,11 +95,30 @@ Three enemy types roam each level. Touching any of them triggers a **death
 flash** (red tint + camera shake) and teleports the player back to the level's
 spawn point after a 1.5 s pause. There are no lives — respawn is immediate.
 
-| Type        | Colour | Behaviour |
-|-------------|--------|-----------|
+| Type        | Colour    | Behaviour |
+|-------------|-----------|-----------|
 | **Walker**  | 🔴 Red    | Patrols platform surfaces at a constant speed. Reverses at walls and platform edges — never walks off into the air. |
 | **Flier**   | 🟣 Purple | Gravity-exempt. Orbits the player at a 72 px radius, circling continuously. Each flier has a randomised starting angle and rotation speed so multiple fliers spread naturally around the player rather than stacking. |
 | **Bouncer** | 🟢 Teal   | Gravity-exempt. Moves at constant speed on both axes simultaneously, reflecting off every surface it contacts (walls, floors, platforms) — DVD screensaver style. Speed never decays. |
+
+---
+
+## ⏱ Speedrun Timer
+
+A live timer runs in the top-left corner of the HUD throughout the entire
+playthrough (all levels, continuous).
+
+- **Starts** automatically at Level 1 and keeps running across level transitions.
+- **Displays** the current elapsed time in `MM:SS.cc` format (centiseconds).
+- **Prev** and **Best** rows show the previous run time and all-time personal
+  best, read from `localStorage` at scene start.
+- On the **Victory screen** the final completion time is displayed, along with
+  previous and best times. A `🏆 New Personal Best!` badge appears if the run
+  sets a new record.
+- **Reset** stored times from the Main Menu via the `🗑 Reset Stored Times`
+  button — clears both `bombjack_speedrun_prev` and `bombjack_speedrun_best`
+  from `localStorage`.
+- The timer is **not shown** during editor play-tests (only active in full runs).
 
 ---
 
@@ -108,22 +141,28 @@ bombjack/
     ├── config/
     │   └── levels.js       # Central registry — import & list all levels here
     ├── levels/
-    │   ├── level1.js       # Level 1 — introduces all three enemy types
-    │   ├── level2.js       # Level 2 — vertical corridors, denser bombs
-    │   └── level3.js       # Level 3 — open arena layout
+    │   ├── level1-a.js     # Sub-level 1-A — shared layout, no enemies (intro)
+    │   ├── level1-b.js     # Sub-level 1-B — adds Walker enemies
+    │   ├── level1-c.js     # Sub-level 1-C — adds Flier enemies
+    │   ├── level1-d.js     # Sub-level 1-D — adds Bouncer enemies (full set)
+    │   ├── level2.js       # Level 2 — vertical corridors  (unregistered extra)
+    │   ├── level3.js       # Level 3 — multi-tier layout    (unregistered extra)
+    │   ├── level4.js       # Level 4 — floating islands     (unregistered extra)
+    │   ├── level5.js       # Level 5 — symmetric shelves    (unregistered extra)
+    │   └── level6.js       # Level 6 — colosseum arena      (unregistered extra)
     └── scenes/
         ├── BootScene.js    # Generates all textures procedurally; boots to MenuScene
-        ├── MenuScene.js    # Main menu — Play Game or open Level Editor
-        ├── GameScene.js    # Core loop: physics, input, bombs, enemies, HUD
+        ├── MenuScene.js    # Main menu — Play Game, Level Editor, Reset Times
+        ├── GameScene.js    # Core loop: physics, input, bombs, enemies, HUD, timer
         ├── EditorScene.js  # Visual level editor with play-test and export
-        └── VictoryScene.js # End screen with Play Again button
+        └── VictoryScene.js # End screen with completion time, PB badge, Play Again
 ```
 
 ### Scene flow
 
 ```
 BootScene → MenuScene ──▶ GameScene (level 0) → GameScene (level 1) → … → VictoryScene
-                     └──▶ EditorScene ⇄ GameScene (play-test, ESC returns)
+                      └──▶ EditorScene ⇄ GameScene (play-test, ESC returns)
 ```
 
 ---
@@ -154,6 +193,7 @@ required. Open it from the main menu with `E` or the `✏️ Level Editor` butto
 
 - **Active Tool** buttons (P / B / S / E / D) with highlighted active state
 - **Enemy sub-type picker** (🔴 Walker / 🟣 Flier / 🟢 Bouncer) — appears inline when the Enemy tool is active
+- **Enemy direction picker** (← Left / → Right) — appears below the sub-type picker when the Enemy tool is active; sets the initial patrol direction for Walkers and Bouncers
 - **Grid Snap** — 16 px or 32 px
 - **Undo** and **Clear All**
 - **Export & Log** — prints the level JS to the browser console
@@ -166,14 +206,14 @@ required. Open it from the main menu with `E` or the `✏️ Level Editor` butto
 
 ### What the editor renders
 
-| Object       | Appearance                                                  |
-|--------------|-------------------------------------------------------------|
-| Platform     | Brown tiled block with highlight stripe and grout lines     |
-| Bomb         | Black circle with fuse spark and orange glow ring           |
-| Player-Start | Blue figure with green bounding box                         |
-| Walker       | Red armoured crawler with amber eye, red bounding box       |
-| Flier        | Purple winged creature with yellow eyes, purple bounding box|
-| Bouncer      | Teal sphere with gloss highlight, teal bounding box         |
+| Object       | Appearance                                                                    |
+|--------------|-------------------------------------------------------------------------------|
+| Platform     | Brown tiled block with highlight stripe and grout lines                       |
+| Bomb         | Black circle with fuse spark and orange glow ring                             |
+| Player-Start | Blue figure with green bounding box                                           |
+| Walker       | Red armoured crawler with amber eye, red bounding box, yellow direction arrow |
+| Flier        | Purple winged creature with yellow eyes, purple bounding box                  |
+| Bouncer      | Teal sphere with gloss highlight, teal bounding box, yellow direction arrow   |
 
 ### Importing a level
 
@@ -196,7 +236,7 @@ Adding a level is **three steps** — nothing else in the codebase needs to chan
 ### Step 1 — Create the level file
 
 ```js
-// src/levels/level4.js
+// src/levels/level2.js
 export default {
   playerStart: { x: 100, y: 500 },
 
@@ -212,9 +252,9 @@ export default {
 
   // Optional — omit entirely if you want no enemies on this level.
   enemies: [
-    { type: 'walker',  x: 300, y: 552 },
+    { type: 'walker',  x: 300, y: 552, dir: 'right' },
     { type: 'flier',   x: 600, y: 300 },
-    { type: 'bouncer', x: 100, y: 200 },
+    { type: 'bouncer', x: 100, y: 200, dir: 'left' },
   ],
 };
 ```
@@ -223,16 +263,18 @@ export default {
 
 ```js
 // src/config/levels.js
-import level1 from '../levels/level1.js';
-import level2 from '../levels/level2.js';
-import level3 from '../levels/level3.js';
-import level4 from '../levels/level4.js';   // ← add this
+import level1a from '../levels/level1-a.js';
+import level1b from '../levels/level1-b.js';
+import level1c from '../levels/level1-c.js';
+import level1d from '../levels/level1-d.js';
+import level2  from '../levels/level2.js';   // ← add this
 
 export const LEVELS = [
-  level1,
-  level2,
-  level3,
-  level4,   // ← and this
+  level1a,
+  level1b,
+  level1c,
+  level1d,
+  level2,   // ← and this
 ];
 ```
 
@@ -269,8 +311,9 @@ levels without it are fully supported.
 
   enemies?: Array<{
     type: 'walker' | 'flier' | 'bouncer',
-    x:    number,   // world-space spawn centre X
-    y:    number,   // world-space spawn centre Y
+    x:    number,              // world-space spawn centre X
+    y:    number,              // world-space spawn centre Y
+    dir?: 'left' | 'right',   // optional — initial direction for walkers & bouncers
   }>,
 }
 ```
@@ -336,9 +379,11 @@ inside `ingress.yaml`.
 | **Physics** | Arcade physics (lightest weight; ideal for classic platformers). World gravity: `500 px/s²`. |
 | **Jump system** | Three-phase: initial impulse → variable hold-boost → glide. 120 ms jump-buffer prevents missed inputs near the ground. |
 | **Enemy AI** | Walker uses `body.bottom` edge-probing with a single-flip guard. Flier uses per-instance orbit angle + rotation speed to avoid stacking. Bouncer reads `body.blocked` flags for reliable DVD-style reflection independent of body bounce coefficients. |
+| **Gamepad** | Phaser's built-in Gamepad plugin (`input.gamepad: true`) is enabled globally. All scenes poll the first connected pad alongside keyboard input; no extra libraries required. |
 | **Platform rendering** | `TileSprite` for visuals + invisible static `Rectangle` for physics — keeps tile art crisp at any width. |
 | **Scene communication** | Data passed via `scene.start(key, data)`. Editor uses `sleep`/`wake` (not `stop`) to preserve all state during play-test. |
 | **Level registry** | `src/config/levels.js` is the *only* file that needs editing to add a level. |
+| **Speedrun timer** | Stored in `game.registry` as a Unix timestamp (`timerStart`). Persisted to `localStorage` as `bombjack_speedrun_best` and `bombjack_speedrun_prev` by `VictoryScene`. Cleared on ESC-to-menu so abandoned runs are never recorded. |
 
 ---
 

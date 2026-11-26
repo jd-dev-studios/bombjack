@@ -5,15 +5,16 @@
  *
  * HOW TO ADD A NEW LEVEL
  * ──────────────────────
- * 1. Create `src/levels/levelN.js` following the same data shape as level1.js.
+ * 1. Create `src/levels/levelN.js` following the same data shape as level1-a.js.
  * 2. Import it here.
  * 3. Push it into the LEVELS array — that's it. GameScene picks it up automatically.
  *
  * The index of each entry matches the `levelIndex` passed between scenes:
- *   LEVELS[0]  →  level1   (first level played)
- *   LEVELS[1]  →  level2
- *   LEVELS[2]  →  level3   (add when ready)
- *   …
+ *   LEVELS[0]  →  level1-a   (intro run — same layout as 1-b/c/d, no enemies)
+ *   LEVELS[1]  →  level1-b   (Walkers introduced)
+ *   LEVELS[2]  →  level1-c   (Fliers introduced)
+ *   LEVELS[3]  →  level1-d   (Bouncers introduced — all three enemy types present)
+ *   …          →  add further levels below as needed
  */
 
 import level1a from '../levels/level1-a.js';
@@ -33,3 +34,4 @@ export const LEVELS = [
   level1c,
   level1d
 ];
+

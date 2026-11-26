@@ -1,7 +1,7 @@
 /**
- * src/levels/level5.js
+ * src/levels/level1-c.js
  * --------------------
- * Layout data for Level 5 — created with the visual editor.
+ * Layout data for Sub-level 1-C — same arena layout as 1-A/B/D, Flier enemies added.
  *
  * DATA SHAPE
  * ----------

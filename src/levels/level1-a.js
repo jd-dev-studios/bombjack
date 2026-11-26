@@ -1,7 +1,8 @@
 /**
- * src/levels/level5.js
+ * src/levels/level1-a.js
  * --------------------
- * Layout data for Level 5 — created with the visual editor.
+ * Layout data for Sub-level 1-A — same arena layout as 1-B/C/D, no enemies.
+ * Serves as a pure bomb-collection intro round before enemies are introduced.
  *
  * DATA SHAPE
  * ----------

@@ -1,7 +1,7 @@
 /**
- * src/levels/level4.js
+ * src/levels/level1-d.js
  * --------------------
- * Layout data for Level 4 — created with the visual editor.
+ * Layout data for Sub-level 1-D — same arena layout as 1-A/B/C, all three enemy types present.
  *
  * DATA SHAPE
  * ----------

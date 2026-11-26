@@ -1,7 +1,7 @@
 /**
- * src/levels/level5.js
+ * src/levels/level1-b.js
  * --------------------
- * Layout data for Level 5 — created with the visual editor.
+ * Layout data for Sub-level 1-B — same arena layout as 1-A/C/D, Walker enemies added.
  *
  * DATA SHAPE
  * ----------
