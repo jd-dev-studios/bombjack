@@ -92,6 +92,11 @@ export default class GameScene extends Phaser.Scene {
     this.jumpBufferMs = 0;     // counts down while a buffered press is pending
     this.isJumpHeld   = false; // true while the hold-boost phase is active
     this.jumpHoldMs   = 0;     // accumulates ms the hold boost has run
+
+    // Gamepad jump-button tracking — mirrors the keyboard JustDown logic.
+    // We need to detect a "just pressed" edge on the gamepad jump button
+    // ourselves since Phaser's gamepad API doesn't provide JustDown helpers.
+    this._padJumpWasDown = false;
     
     // ── Timer / Speedrun tracking ──────────────────────────────────────────
     // On level 0, start a fresh timer. Skip in play-test mode (returnTo set).
@@ -124,6 +129,12 @@ export default class GameScene extends Phaser.Scene {
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
+    // WASD — alternative controls; W mirrors ↑ (jump/glide), A/D mirror ← /→.
+    // S has no mapped action (no crouch / down mechanic) and is left unbound.
+    this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    this.keyW = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
+    this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+
     // ESC key: return to editor in play-test mode, return to main menu in normal play.
     if (this.returnTo) {
       this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
@@ -132,6 +143,18 @@ export default class GameScene extends Phaser.Scene {
       this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
         .on('down', () => this._exitToMenu());
     }
+
+    // Gamepad Start / Options button (index 9) mirrors ESC.
+    // We listen on the scene's gamepad manager instead of polling so it fires
+    // exactly once per press, same as the keyboard handler above.
+    this.input.gamepad.on('down', (_pad, button) => {
+      if (button.index !== 9) return; // 9 = Start / Options on standard mapping
+      if (this.returnTo) {
+        this._exitToEditor();
+      } else {
+        this._exitToMenu();
+      }
+    });
 
     this._startBombPulse();
   }
@@ -503,11 +526,43 @@ export default class GameScene extends Phaser.Scene {
     const body      = this.player.body;
     const onGround  = body.blocked.down;
 
+    // ── Gamepad helpers ───────────────────────────────────────────────────────
+    // _getGamepad() returns the first connected pad, or null when none is present.
+    // All gamepad reads are gated behind this check so the game still works with
+    // keyboard-only input when no controller is connected.
+    const pad = this._getGamepad();
+
+    // Left stick X axis (index 0) — negative = left, positive = right.
+    // Fall back to 0 when no pad is connected.
+    const stickX = pad ? pad.axes[0].getValue() : 0;
+
+    // D-pad digital buttons: left=14, right=15, up=12 (standard mapping).
+    const padLeft  = pad ? pad.isButtonDown(14) : false;
+    const padRight = pad ? pad.isButtonDown(15) : false;
+    const padUp    = pad ? pad.isButtonDown(12) : false;
+
+    // Face buttons used for jumping: A=0, B=1, X=2, Y=3, plus D-pad up=12.
+    const padJumpDown = pad ? (
+      pad.isButtonDown(0) ||  // A  (Xbox) / Cross    (PS)
+      pad.isButtonDown(2) ||  // X  (Xbox) / Square   (PS)
+      pad.isButtonDown(3) ||  // Y  (Xbox) / Triangle (PS)
+      padUp
+    ) : false;
+
+    // Detect a fresh "just pressed" edge on the gamepad jump button so it
+    // feeds into the existing jump-buffer system exactly like JustDown.
+    const padJumpJustPressed = padJumpDown && !this._padJumpWasDown;
+    this._padJumpWasDown = padJumpDown;
+
     // ── Horizontal ────────────────────────────────────────────────────────────
-    if (this.cursors.left.isDown) {
+    // Combine keyboard and gamepad: either source can drive movement.
+    const moveLeft  = this.cursors.left.isDown  || this.keyA.isDown || padLeft  || stickX < -0.2;
+    const moveRight = this.cursors.right.isDown || this.keyD.isDown || padRight || stickX >  0.2;
+
+    if (moveLeft) {
       this.player.setVelocityX(-PLAYER_SPEED);
       this.player.setFlipX(true);
-    } else if (this.cursors.right.isDown) {
+    } else if (moveRight) {
       this.player.setVelocityX(PLAYER_SPEED);
       this.player.setFlipX(false);
     } else {
@@ -518,10 +573,13 @@ export default class GameScene extends Phaser.Scene {
     // ── Jump key state ────────────────────────────────────────────────────────
     const jumpJustPressed =
       Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
-      Phaser.Input.Keyboard.JustDown(this.spaceKey);
+      Phaser.Input.Keyboard.JustDown(this.spaceKey)   ||
+      Phaser.Input.Keyboard.JustDown(this.keyW)       ||
+      padJumpJustPressed;
 
     const jumpHeld =
-      this.cursors.up.isDown || this.spaceKey.isDown;
+      this.cursors.up.isDown || this.spaceKey.isDown || this.keyW.isDown ||
+      padJumpDown;
 
     // ── 1. Jump buffer ────────────────────────────────────────────────────────
     // Refill the buffer on a fresh press; decay it every frame regardless.
@@ -668,6 +726,19 @@ export default class GameScene extends Phaser.Scene {
     this.scene.wake(this.returnTo);
   }
 
+  // ── Gamepad ────────────────────────────────────────────────────────────────
+
+  /**
+   * Returns the first connected gamepad (Phaser.Input.Gamepad.Gamepad), or
+   * null when no controller is plugged in / detected yet.
+   * Centralises the null-checks so call sites stay clean.
+   */
+  _getGamepad() {
+    const gm = this.input.gamepad;
+    if (!gm || !gm.total) return null;
+    return gm.getPad(0) ?? null;
+  }
+
   // ── HUD ────────────────────────────────────────────────────────────────────
 
   _buildHUD() {
@@ -699,8 +770,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Controls hint — fades out after 4 s.
     const controlsText = this.returnTo
-      ? '← → Move    ↑ / Space Jump (hold = higher, hold falling = glide)    ESC Return to Editor'
-      : '← → Move    ↑ / Space Jump (hold = higher, hold falling = glide)    ESC Menu';
+      ? 'WASD / ← → ↑  or  🎮 Left Stick / D-pad / A   Move & Jump    ESC / Start  Return to Editor'
+      : 'WASD / ← → ↑  or  🎮 Left Stick / D-pad / A   Move & Jump    ESC / Start  Menu';
 
     const hint = this.add
       .text(14, this.scale.height - 24, controlsText, {

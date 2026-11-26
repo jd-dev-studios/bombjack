@@ -104,7 +104,7 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0);
 
     // ── Keyboard shortcut hint ────────────────────────────────────────────
-    const hint = this.add.text(cx, height - 28, 'ENTER / SPACE — Play     E — Editor', {
+    const hint = this.add.text(cx, height - 28, 'ENTER / SPACE — Play     E — Editor     🎮 A / Start — Play     Select — Editor', {
       fontSize:   '13px',
       fontFamily: 'Arial, sans-serif',
       color:      '#555577',
@@ -131,6 +131,19 @@ export default class MenuScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ENTER', () => this._startGame());
     this.input.keyboard.on('keydown-SPACE', () => this._startGame());
     this.input.keyboard.on('keydown-E',     () => this._openEditor());
+
+    // ── Gamepad shortcuts ─────────────────────────────────────────────────
+    // Listen for button-down events on any connected pad.
+    //   Button 0  = A (Xbox) / Cross (PS)       → Play Game
+    //   Button 9  = Start / Options              → Play Game
+    //   Button 8  = Select / Back / Share        → Open Editor
+    this.input.gamepad.on('down', (_pad, button) => {
+      if (button.index === 0 || button.index === 9) {
+        this._startGame();
+      } else if (button.index === 8) {
+        this._openEditor();
+      }
+    });
 
     // ── Entrance animations ───────────────────────────────────────────────
     this.tweens.add({ targets: title,              alpha: 1, y: 114,      duration: 800, ease: 'Back.Out' });

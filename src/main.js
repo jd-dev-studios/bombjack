@@ -23,6 +23,12 @@ const config = {
   backgroundColor: '#1a1a2e',
   parent: 'game-container', // Mount inside the div defined in index.html.
 
+  // Enable the built-in Gamepad plugin so all scenes can access
+  // this.input.gamepad and poll connected controllers each frame.
+  input: {
+    gamepad: true,
+  },
+
   physics: {
     default: 'arcade',
     arcade: {

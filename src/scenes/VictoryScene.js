@@ -163,6 +163,14 @@ export default class VictoryScene extends Phaser.Scene {
       this.scene.start('BootScene');
     });
 
+    // ── Gamepad shortcut ─────────────────────────────────────────────────────
+    // A (0) or Start (9) confirm / play again — mirrors the on-screen button.
+    this.input.gamepad.on('down', (_pad, button) => {
+      if (button.index === 0 || button.index === 9) {
+        this.scene.start('BootScene');
+      }
+    });
+
     // ── Entrance animation ───────────────────────────────────────────────────
     this.tweens.add({ targets: heading,  alpha: 1, y: cy - 150, duration: 700, ease: 'Back.Out' });
     this.tweens.add({ targets: completionTimeText, alpha: 1,    duration: 500, delay: 300 });
