@@ -54,6 +54,21 @@ export default class MenuScene extends Phaser.Scene {
       align:           'center',
     }).setOrigin(0.5).setAlpha(0);
 
+    // ── Personal best ─────────────────────────────────────────────────────
+    // Shown only when the player has at least one completed run on record.
+    const bestMs = parseInt(localStorage.getItem('bombjack_speedrun_best') || '0', 10);
+    let pbText = null;
+    if (bestMs > 0) {
+      pbText = this.add.text(cx, 228, `🏆 Best: ${this._formatTime(bestMs)}`, {
+        fontSize:        '15px',
+        fontFamily:      'Arial, monospace',
+        color:           '#ffd600',
+        stroke:          '#000000',
+        strokeThickness: 2,
+        align:           'center',
+      }).setOrigin(0.5).setAlpha(0);
+    }
+
     // ── Play button ───────────────────────────────────────────────────────
     const playBg = this.add.rectangle(cx, cy + 30, 270, 62, 0xffd600, 1)
       .setInteractive({ useHandCursor: true })
@@ -103,6 +118,9 @@ export default class MenuScene extends Phaser.Scene {
     // ── Entrance animations ───────────────────────────────────────────────
     this.tweens.add({ targets: title,              alpha: 1, y: 114,      duration: 800, ease: 'Back.Out' });
     this.tweens.add({ targets: subtitle,           alpha: 1,              duration: 600, delay: 250 });
+    if (pbText) {
+      this.tweens.add({ targets: pbText,           alpha: 1,              duration: 500, delay: 400 });
+    }
     this.tweens.add({ targets: [playBg, playText], alpha: 1,              duration: 500, delay: 420 });
     this.tweens.add({ targets: [editBg, editText], alpha: 1,              duration: 500, delay: 570 });
     this.tweens.add({ targets: hint,               alpha: 1,              duration: 500, delay: 820 });
@@ -130,6 +148,15 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Formats milliseconds as MM:SS.ss (e.g. "01:23.45"). */
+  _formatTime(ms) {
+    const totalSeconds  = Math.floor(ms / 1000);
+    const minutes       = Math.floor(totalSeconds / 60);
+    const seconds       = totalSeconds % 60;
+    const centiseconds  = Math.floor((ms % 1000) / 10);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+  }
 
   /** Floating semi-transparent bomb icons in the four corners — purely decorative. */
   _spawnDecorativeBombs(width, height) {

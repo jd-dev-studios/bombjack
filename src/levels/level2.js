@@ -1,7 +1,7 @@
 /**
- * src/levels/level4.js
+ * src/levels/level2.js
  * --------------------
- * Layout data for Level 4 — created with the visual editor.
+ * Layout data for Level 2 — created with the visual editor.
  *
  * DATA SHAPE
  * ----------
@@ -14,6 +14,10 @@
  *
  * bombs        – Array of { x, y }
  *                  World-space centre of each static bomb pickup.
+ *
+ * enemies      – Array of { type, x, y }
+ *                  type : 'walker' | 'flier' | 'bouncer'
+ *                  x / y: world-space spawn centre.
  *
  * NOTE: Canvas is 800 × 600 px.  Ground sits at y: 568.  Ceiling at y: 0.
  */
@@ -84,5 +88,9 @@ export default {
     { x: 300, y: 104 },
     { x: 400, y: 104 },
     { x: 500, y: 104 }
+  ],
+
+  enemies: [
+    { type: 'bouncer', x: 400, y: 64 }
   ],
 };

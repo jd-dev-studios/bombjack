@@ -16,20 +16,20 @@
  *   …
  */
 
-import level1 from '../levels/level1.js';
-import level2 from '../levels/level2.js';
-import level3 from '../levels/level3.js';
-import level4 from '../levels/level4.js';
-import level5 from '../levels/level5.js';
-import level6 from '../levels/level6.js';
-import level6 from '../levels/level7.js';
+import level1a from '../levels/level1-a.js';
+import level1b from '../levels/level1-b.js';
+import level1c from '../levels/level1-c.js';
+import level1d from '../levels/level1-d.js';
+
+//import level2 from '../levels/level2.js';
+//import level3 from '../levels/level3.js';
+//import level4 from '../levels/level4.js';
+//import level5 from '../levels/level5.js';
+//import level6 from '../levels/level6.js';
 
 export const LEVELS = [
-  level1,
-  level2,
-  level3,
-  level4,
-  level5,
-  level6,
-  level7,
+  level1a,
+  level1b,
+  level1c,
+  level1d
 ];

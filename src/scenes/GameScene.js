@@ -234,10 +234,13 @@ export default class GameScene extends Phaser.Scene {
       if (def.type === 'walker') {
         sprite.setCollideWorldBounds(true);
         sprite.setBounce(0);
-        sprite.setVelocityX(ENEMY_WALKER_SPEED);
-        sprite.body.setSize(28, 18);
-        sprite.body.setOffset(2, 14);
-        sprite.patrolDir = 1;
+         // Start direction: use def.dir if specified ('left' or 'right'), else default 'right'
+         const walkerDir = def.dir === 'left' ? -1 : 1;
+         sprite.setVelocityX(ENEMY_WALKER_SPEED * walkerDir);
+         sprite.setFlipX(walkerDir < 0);
+         sprite.body.setSize(28, 18);
+         sprite.body.setOffset(2, 14);
+         sprite.patrolDir = walkerDir;
 
       } else if (def.type === 'flier') {
         sprite.body.setAllowGravity(false);
@@ -255,9 +258,18 @@ export default class GameScene extends Phaser.Scene {
         sprite.body.setAllowGravity(false);
         sprite.setCollideWorldBounds(true);
         sprite.setBounce(1);
-        const dirX = Math.random() < 0.5 ? 1 : -1;
-        const dirY = Math.random() < 0.5 ? 1 : -1;
-        sprite.setVelocity(ENEMY_BOUNCER_SPEED * dirX, ENEMY_BOUNCER_SPEED * dirY);
+         // Horizontal direction: use def.dir if specified, else random
+         // Vertical direction is always random
+         let dirX;
+         if (def.dir === 'left') {
+           dirX = -1;
+         } else if (def.dir === 'right') {
+           dirX = 1;
+         } else {
+           dirX = Math.random() < 0.5 ? 1 : -1;
+         }
+         const dirY = Math.random() < 0.5 ? 1 : -1;
+         sprite.setVelocity(ENEMY_BOUNCER_SPEED * dirX, ENEMY_BOUNCER_SPEED * dirY);
         sprite.body.setSize(24, 24);
         sprite.body.setOffset(4, 4);
       }
