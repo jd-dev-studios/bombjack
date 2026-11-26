@@ -30,7 +30,7 @@ export default class BootScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // create() — draw every texture the game needs, then show the boot screen.
+  // create() — draw every texture the game needs, then boot into level 1.
   // ---------------------------------------------------------------------------
   create() {
     this._createBackgroundTexture();
@@ -41,131 +41,7 @@ export default class BootScene extends Phaser.Scene {
     this._createEnemyFlierTexture();
     this._createEnemyBouncerTexture();
 
-    // All textures are ready — show boot screen before entering the main menu.
-    this._showBootScreen();
-  }
-
-  // ---------------------------------------------------------------------------
-  // _showBootScreen() — interstitial screen that lets the player reset stored
-  // speedrun times before the main menu loads and displays them.
-  // ---------------------------------------------------------------------------
-  _showBootScreen() {
-    const { width, height } = this.scale;
-    const cx = width  / 2;
-    const cy = height / 2;
-
-    // Background (already generated above).
-    this.add.image(0, 0, 'background').setOrigin(0, 0);
-
-    // Subtle radial centre glow — matches MenuScene / VictoryScene style.
-    const glow = this.add.graphics();
-    glow.fillStyle(0xffd600, 0.05);
-    glow.fillCircle(cx, cy, 340);
-
-    // Decorative floating bombs — four corners.
-    const bombPositions = [
-      { x: 60,         y: 60          },
-      { x: width - 60, y: 60          },
-      { x: 60,         y: height - 60 },
-      { x: width - 60, y: height - 60 },
-    ];
-    bombPositions.forEach(({ x, y }, i) => {
-      const b = this.add.image(x, y, 'bomb').setScale(1.3).setAlpha(0.3);
-      this.tweens.add({
-        targets: b, y: y + 14,
-        duration: 1400 + i * 220, yoyo: true, repeat: -1, ease: 'Sine.InOut',
-      });
-    });
-
-    // Title.
-    const title = this.add.text(cx, 100, '💣 BOMB JACK', {
-      fontSize: '54px', fontFamily: 'Arial Black, Arial, sans-serif',
-      color: '#ffd600', stroke: '#000000', strokeThickness: 6, align: 'center',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Section label.
-    const sectionLabel = this.add.text(cx, cy - 60, 'Manage Save Data', {
-      fontSize: '16px', fontFamily: 'Arial, sans-serif',
-      color: '#888899', align: 'center',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Reset button — dark-red to signal a destructive action.
-    const resetBg = this.add.rectangle(cx, cy + 10, 290, 60, 0x7f0000, 1)
-      .setInteractive({ useHandCursor: true }).setAlpha(0);
-    const resetText = this.add.text(cx, cy + 10, '🗑  Reset Stored Times', {
-      fontSize: '21px', fontFamily: 'Arial Black, Arial, sans-serif',
-      color: '#ffcccc',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Continue button — gold, matches the MenuScene Play button style.
-    const continueBg = this.add.rectangle(cx, cy + 100, 290, 60, 0xffd600, 1)
-      .setInteractive({ useHandCursor: true }).setAlpha(0);
-    const continueText = this.add.text(cx, cy + 100, '▶  Continue', {
-      fontSize: '24px', fontFamily: 'Arial Black, Arial, sans-serif',
-      color: '#1a1a2e',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Keyboard hint.
-    const hint = this.add.text(cx, height - 28, 'ENTER / SPACE — Continue', {
-      fontSize: '13px', fontFamily: 'Arial, sans-serif',
-      color: '#555577', align: 'center',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Hover / press effects.
-    resetBg.on('pointerover',  () => resetBg.setFillStyle(0xaa0000));
-    resetBg.on('pointerout',   () => resetBg.setFillStyle(0x7f0000));
-    resetBg.on('pointerdown',  () => resetBg.setFillStyle(0x550000));
-    resetBg.on('pointerup',    () => this._resetTimes(resetBg, resetText));
-
-    continueBg.on('pointerover',  () => continueBg.setFillStyle(0xffc107));
-    continueBg.on('pointerout',   () => continueBg.setFillStyle(0xffd600));
-    continueBg.on('pointerdown',  () => continueBg.setFillStyle(0xff8f00));
-    continueBg.on('pointerup',    () => this._goToMenu());
-
-    // Keyboard shortcuts.
-    this.input.keyboard.on('keydown-ENTER', () => this._goToMenu());
-    this.input.keyboard.on('keydown-SPACE', () => this._goToMenu());
-
-    // Entrance animations.
-    this.tweens.add({ targets: title,                      alpha: 1, y: 114, duration: 800, ease: 'Back.Out' });
-    this.tweens.add({ targets: sectionLabel,               alpha: 1,         duration: 500, delay: 300 });
-    this.tweens.add({ targets: [resetBg,    resetText],    alpha: 1,         duration: 500, delay: 450 });
-    this.tweens.add({ targets: [continueBg, continueText], alpha: 1,         duration: 500, delay: 580 });
-    this.tweens.add({ targets: hint,                       alpha: 1,         duration: 500, delay: 800 });
-
-    // Gentle perpetual float on the title once it has arrived.
-    this.tweens.add({
-      targets: title, y: 122, duration: 2200,
-      yoyo: true, repeat: -1, ease: 'Sine.InOut', delay: 1000,
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // _resetTimes() — wipes both speedrun localStorage keys then shows a brief
-  // confirmation before automatically proceeding to the menu.
-  // ---------------------------------------------------------------------------
-  _resetTimes(resetBg, resetText) {
-    if (this._transitioning) return;
-
-    localStorage.removeItem('bombjack_speedrun_best');
-    localStorage.removeItem('bombjack_speedrun_prev');
-
-    // Swap button to a green confirmation state so the player gets feedback.
-    resetBg.setFillStyle(0x1b5e20);
-    resetBg.disableInteractive();
-    resetText.setText('✓  Times cleared!');
-    resetText.setColor('#ccffcc');
-
-    // Short pause to let the player read the confirmation, then proceed.
-    this.time.delayedCall(900, () => this._goToMenu());
-  }
-
-  // ---------------------------------------------------------------------------
-  // _goToMenu() — guarded transition to MenuScene; fires at most once.
-  // ---------------------------------------------------------------------------
-  _goToMenu() {
-    if (this._transitioning) return;
-    this._transitioning = true;
+    // All textures are ready — show the main menu.
     this.scene.start('MenuScene');
   }
 

@@ -57,9 +57,9 @@ export default class MenuScene extends Phaser.Scene {
     // ── Personal best ─────────────────────────────────────────────────────
     // Shown only when the player has at least one completed run on record.
     const bestMs = parseInt(localStorage.getItem('bombjack_speedrun_best') || '0', 10);
-    let pbText = null;
+    this._pbText = null;
     if (bestMs > 0) {
-      pbText = this.add.text(cx, 228, `🏆 Best: ${this._formatTime(bestMs)}`, {
+      this._pbText = this.add.text(cx, 228, `🏆 Best: ${this._formatTime(bestMs)}`, {
         fontSize:        '15px',
         fontFamily:      'Arial, monospace',
         color:           '#ffd600',
@@ -91,6 +91,18 @@ export default class MenuScene extends Phaser.Scene {
       color:      '#ffffff',
     }).setOrigin(0.5).setAlpha(0);
 
+    // ── Reset times button ────────────────────────────────────────────────
+    // Smaller tertiary button; dark-red signals a destructive-but-recoverable action.
+    const resetBg = this.add.rectangle(cx, cy + 200, 220, 44, 0x7f0000, 1)
+      .setInteractive({ useHandCursor: true })
+      .setAlpha(0);
+
+    const resetText = this.add.text(cx, cy + 200, '🗑  Reset Stored Times', {
+      fontSize:   '16px',
+      fontFamily: 'Arial Black, Arial, sans-serif',
+      color:      '#ffcccc',
+    }).setOrigin(0.5).setAlpha(0);
+
     // ── Keyboard shortcut hint ────────────────────────────────────────────
     const hint = this.add.text(cx, height - 28, 'ENTER / SPACE — Play     E — Editor', {
       fontSize:   '13px',
@@ -110,6 +122,11 @@ export default class MenuScene extends Phaser.Scene {
     editBg.on('pointerdown',  () => editBg.setFillStyle(0x0d47a1));
     editBg.on('pointerup',    () => this._openEditor());
 
+    resetBg.on('pointerover',  () => resetBg.setFillStyle(0xaa0000));
+    resetBg.on('pointerout',   () => resetBg.setFillStyle(0x7f0000));
+    resetBg.on('pointerdown',  () => resetBg.setFillStyle(0x550000));
+    resetBg.on('pointerup',    () => this._resetTimes(resetBg, resetText));
+
     // ── Keyboard shortcuts ────────────────────────────────────────────────
     this.input.keyboard.on('keydown-ENTER', () => this._startGame());
     this.input.keyboard.on('keydown-SPACE', () => this._startGame());
@@ -118,11 +135,12 @@ export default class MenuScene extends Phaser.Scene {
     // ── Entrance animations ───────────────────────────────────────────────
     this.tweens.add({ targets: title,              alpha: 1, y: 114,      duration: 800, ease: 'Back.Out' });
     this.tweens.add({ targets: subtitle,           alpha: 1,              duration: 600, delay: 250 });
-    if (pbText) {
-      this.tweens.add({ targets: pbText,           alpha: 1,              duration: 500, delay: 400 });
+    if (this._pbText) {
+      this.tweens.add({ targets: this._pbText,     alpha: 1,              duration: 500, delay: 400 });
     }
     this.tweens.add({ targets: [playBg, playText], alpha: 1,              duration: 500, delay: 420 });
     this.tweens.add({ targets: [editBg, editText], alpha: 1,              duration: 500, delay: 570 });
+    this.tweens.add({ targets: [resetBg, resetText], alpha: 1,            duration: 500, delay: 700 });
     this.tweens.add({ targets: hint,               alpha: 1,              duration: 500, delay: 820 });
 
     // Gentle perpetual float on the title once it has arrived.
@@ -148,6 +166,27 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * Clears both speedrun localStorage keys, hides the personal-best display,
+   * and turns the button green as confirmation. No navigation — the player
+   * stays on the menu. The button is disabled so it cannot fire twice.
+   */
+  _resetTimes(resetBg, resetText) {
+    localStorage.removeItem('bombjack_speedrun_best');
+    localStorage.removeItem('bombjack_speedrun_prev');
+
+    // Hide the personal-best text if it was visible.
+    if (this._pbText) {
+      this._pbText.setVisible(false);
+    }
+
+    // Green confirmation state — mirrors the VictoryScene / BootScene style.
+    resetBg.setFillStyle(0x1b5e20);
+    resetBg.disableInteractive();
+    resetText.setText('✓  Times cleared!');
+    resetText.setColor('#ccffcc');
+  }
 
   /** Formats milliseconds as MM:SS.ss (e.g. "01:23.45"). */
   _formatTime(ms) {
