@@ -22,7 +22,12 @@ import level1b from '../levels/level1-b.js';
 import level1c from '../levels/level1-c.js';
 import level1d from '../levels/level1-d.js';
 
-//import level2 from '../levels/level2.js';
+import level2a from '../levels/level2-a.js';
+import level2b from '../levels/level2-b.js';
+import level2c from '../levels/level2-c.js';
+import level2d from '../levels/level2-d.js';
+
+
 //import level3 from '../levels/level3.js';
 //import level4 from '../levels/level4.js';
 //import level5 from '../levels/level5.js';
@@ -32,6 +37,10 @@ export const LEVELS = [
   level1a,
   level1b,
   level1c,
-  level1d
+  level1d,
+  level2a,
+  level2b,
+  level2c,
+  level2d,
 ];
 

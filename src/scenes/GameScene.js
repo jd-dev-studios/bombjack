@@ -296,6 +296,7 @@ export default class GameScene extends Phaser.Scene {
          }
          const dirY = Math.random() < 0.5 ? 1 : -1;
          sprite.setVelocity(ENEMY_BOUNCER_SPEED * dirX, ENEMY_BOUNCER_SPEED * dirY);
+         sprite.bouncerDirX = dirX;   // persist intended direction for the stall watchdog
         sprite.body.setSize(24, 24);
         sprite.body.setOffset(4, 4);
       }
@@ -440,8 +441,8 @@ export default class GameScene extends Phaser.Scene {
     const threshold = ENEMY_BOUNCER_SPEED * 0.25;
 
     if (Math.abs(vx) < threshold) {
-      // Default to rightward on a true zero so the ball always starts moving.
-      enemy.setVelocityX((vx < 0 ? -1 : 1) * ENEMY_BOUNCER_SPEED);
+      // Fall back to spawn direction on a true zero — avoids hardcoding rightward.
+      enemy.setVelocityX((vx < 0 ? -1 : vx > 0 ? 1 : enemy.bouncerDirX) * ENEMY_BOUNCER_SPEED);
     }
     if (Math.abs(vy) < threshold) {
       // Default upward on a true zero — away from the ground it spawns on.
